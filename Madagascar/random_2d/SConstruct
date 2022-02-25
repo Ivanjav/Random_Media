@@ -1,0 +1,37 @@
+from rsf.proj import *
+from math import pi,sqrt
+import math
+
+epsilon=0.05
+a=200
+n1 = 201
+d1 = 20
+o1 = 0.0
+n2 = 201
+d2 = 20
+o2 = 0.0
+c1= 0.5*d1*(n1-1)
+c2= 0.5*d2*(n2-1)
+K= sqrt(n1*n2)
+Flow ('R',None,'''math n1=%d d1=%g o1=%g n2=%d d2=%g o2=%g
+                    output="(%g^2)*exp(-((x1-%g)^2+(x2-%g)^2)/(%g^2))" 
+                '''%(n1,d1,o1,n2,d2,o2,epsilon,c1,c2,a))
+Flow('R_imag','R','''math output="0"''')
+Flow('P','R R_imag', '''cmplx ${SOURCES[0]} ${SOURCES[1]} | 
+                        fft3 axis=1 opt=y | fft3 axis=2 opt=y''')
+Flow('PSDF','P','''math a=${SOURCES[0]} output="abs(a)" | real input''')
+
+Flow('Phase_imag','P','''real input | math output="0" | 
+                         noise seed="time(NULL)" type=n range=%g'''%(pi))
+Flow('Phase_real','Phase_imag','''math output="0"''')
+Flow('Phase','Phase_real Phase_imag', '''cmplx ${SOURCES[0]} ${SOURCES[1]}''')
+
+
+Flow('M','P Phase','''math a=${SOURCES[0]} b=${SOURCES[1]} output="sqrt(abs(a))*exp(-b)" | 
+                      fft3 axis=1 opt=y inv=y | fft3 axis=2 opt=y inv=y |
+                      real input | math output="input*%g"'''%(K))
+Result('R','''byte mean=y | grey color=j flat=n title="ACF"''')
+Result('PSDF','''byte mean=y | grey color=j flat=n title="PSDF"''')
+Result('M','''byte mean=y | grey color=j flat=n title="Random Medium"''')
+
+End()
